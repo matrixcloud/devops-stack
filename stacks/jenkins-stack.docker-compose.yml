@@ -1,0 +1,42 @@
+version: "3.7"
+
+services:
+  app:
+    image: jenkins/jenkins:2.414.3-lts-jdk17
+    user: root
+    networks:
+      - proxy
+    deploy:
+      mode: replicated
+      replicas: 1
+      update_config:
+        parallelism: 1
+        delay: 10s
+        order: stop-first
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 3
+        window: 120s
+      placement:
+        constraints: [node.role == worker]
+      labels:
+        - "traefik.enable=true"
+        - "traefik.docker.network=proxy"
+        - "traefik.http.routers.jenkins.rule=Host(`jenkins.example.com`)"
+        - "traefik.http.routers.jenkins.entrypoints=http"
+        - "traefik.http.routers.jenkins.service=jenkins"
+        - "traefik.http.services.jenkins.loadbalancer.server.port=8080"
+    volumes:
+      - /usr/bin/docker:/usr/bin/docker:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+      - /mnt/jenkins-vol/home:/var/jenkins_home
+    environment:
+      - hudson.footerURL=http://jenkins.example.com
+    extra_hosts:
+      - "gerrit.example.com:10.10.100.100"
+networks:
+  proxy:
+    external: true

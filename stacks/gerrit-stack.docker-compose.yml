@@ -1,0 +1,56 @@
+version: "3.7"
+
+services:
+  app:
+    image: gerritcodereview/gerrit:3.7.5
+    user: root
+    environment:
+      - CANONICAL_WEB_URL=http://gerrit.example.com
+    networks:
+      - proxy
+    deploy:
+      mode: replicated
+      replicas: 1
+      update_config:
+        parallelism: 1
+        delay: 10s
+        order: stop-first
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 3
+        window: 120s
+      placement:
+        constraints:
+          - node.role == worker
+      labels:
+        - "traefik.enable=true"
+        - "traefik.docker.network=proxy"
+        - "traefik.http.routers.gerrit.rule=Host(`gerrit.example.com`)"
+        - "traefik.http.routers.gerrit.entrypoints=http"
+        - "traefik.http.routers.gerrit.service=gerrit"
+        - "traefik.http.services.gerrit.loadbalancer.server.port=8080"
+        - "traefik.tcp.routers.gerrit-tcp.rule=HostSNI(`*`)"
+        - "traefik.tcp.routers.gerrit-tcp.entrypoints=tcp29418"
+        - "traefik.tcp.routers.gerrit-tcp.service=gerrit-tcp"
+        - "traefik.tcp.services.gerrit-tcp.loadbalancer.server.port=29418"
+    # command: init
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+      - /mnt/gerrit-vol/git:/var/gerrit/git
+      - /mnt/gerrit-vol/etc:/var/gerrit/etc
+      - /mnt/gerrit-vol/plugins:/var/gerrit/plugins
+      - /mnt/gerrit-vol/lib:/var/gerrit/lib
+      - data-index:/var/gerrit/index
+      - data-cache:/var/gerrit/cache
+volumes:
+  data-index:
+  data-cache:
+
+networks:
+  proxy:
+    external: true
+secrets:
+  ldap-admin-pwd:
+    external: true

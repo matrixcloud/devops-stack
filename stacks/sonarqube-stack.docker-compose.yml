@@ -1,0 +1,58 @@
+version: "3.7"
+
+services:
+  app:
+    image: sonarqube:10.2-community
+    networks:
+      - proxy
+    secrets:
+      - pg-pwd
+    environment:
+      SONAR_JDBC_URL: jdbc:postgresql://pg:5432/sonar
+      SONAR_JDBC_USERNAME: postgres
+    entrypoint: [ '/bin/bash', '-c', 'export SONAR_JDBC_PASSWORD=$$(cat /var/run/secrets/pg-pwd);source /opt/sonarqube/docker/entrypoint.sh']
+    deploy:
+      mode: replicated
+      replicas: 1
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
+        reservations:
+          cpus: '1.0'
+          memory: 2G
+      update_config:
+        parallelism: 1
+        delay: 10s
+        order: stop-first
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 3
+        window: 120s
+      placement:
+        constraints: 
+          - node.role == worker
+          - node.labels.app == sonarqube
+      labels:
+        - "traefik.enable=true"
+        - "traefik.docker.network=proxy"
+        - "traefik.http.routers.sonarqube.rule=Host(`sonarqube.example.com`)"
+        - "traefik.http.routers.sonarqube.entrypoints=http"
+        - "traefik.http.routers.sonarqube.service=sonarqube"
+        - "traefik.http.services.sonarqube.loadbalancer.server.port=9000"
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+      - /mnt/sonarqube-vol/conf:/opt/sonarqube/conf
+      - /mnt/sonarqube-vol/data:/opt/sonarqube/data
+      - /mnt/sonarqube-vol/extensions:/opt/sonarqube/extensions
+      - /mnt/sonarqube-vol/bundled-plugins:/opt/sonarqube/lib/bundled-plugins
+      - /mnt/sonarqube-vol/logs:/opt/sonarqube/logs
+
+networks:
+  proxy:
+    external: true
+secrets:
+  pg-pwd:
+    external: true
